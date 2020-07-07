@@ -87,20 +87,52 @@ wales_id_19_data
 welsh_id <- left_join(wales_id_14_data, wales_id_19_data, suffix = c("_2014", "_2019"), by = "lsoa_sw_name") %>%
   left_join(statswales_lookup, by = c("lsoa_sw_name" = "lsoa_name"))
 
+# Welsh income deprivation data (need to calculate deciles from scratch to make relative to the whole country)
 
-### select only income deprivation columns
+wales_id_15 <- read_html("https://statswales.gov.wales/v/IDyZ")
+
+wales_id_15_data <- wales_id_15 %>%
+  html_nodes(xpath = '//*[@id="pivotGrid_MT"]') %>%
+  html_table(fill = TRUE, header = TRUE, trim = TRUE) %>%
+  as.data.frame(.) %>%
+  as_tibble() %>%
+  clean_names() %>%
+  slice(20:nrow(.)) %>%
+  select(3:4) 
+
+names(wales_id_15_data) <- c("lsoa11nm", "id_rate_2015")
+
+wales_id_15_data
+
+welsh_id <- left_join(welsh_id, wales_id_15_data, by = c("lsoa_sw_name" = "lsoa11nm"))
+
+
+### select only income deprivation columns and rates (for 2015)
 english_idd <- english_id %>%
-  select(lsoa11cd, income_dep_decile_2015, income_dep_decile_2019)
+  select(lsoa11cd, income_dep_decile_2015, income_dep_decile_2019, income_dep_rate_2015)
 
 welsh_idd <- welsh_id %>%
-  select(lsoa11cd = lsoa11code, income_dep_decile_2015 = inc_dec_2014, income_dep_decile_2019 = inc_dec_2019) %>%
-  mutate(income_dep_decile_2015 = as.double(income_dep_decile_2015), income_dep_decile_2019 = as.double(income_dep_decile_2019))
+  select(lsoa11cd = lsoa11code, income_dep_decile_2015 = inc_dec_2014, income_dep_decile_2019 = inc_dec_2019, income_dep_rate_2015 = id_rate_2015) %>%
+  mutate(income_dep_decile_2015 = as.double(income_dep_decile_2015), income_dep_decile_2019 = as.double(income_dep_decile_2019), income_dep_rate_2015 = as.double(income_dep_rate_2015))
+
+welsh_idd
 
 idd_combined <- bind_rows(english_idd, welsh_idd)
+
+idd_combined
+
+# calculate England and Wales comparable rates for 2015
+idd_combined <- idd_combined %>%
+  mutate(
+    income_dep_decile_2015_ew = ntile(desc(income_dep_rate_2015), 10)
+  ) %>%
+  select(-income_dep_rate_2015)
+
 
 # Add LEA level LA grouping data
 idd_combined <- left_join(idd_combined, lsoa_lea_lookup %>% select(LSOA11CD, LA_name), by = c("lsoa11cd" = "LSOA11CD")) 
   
+idd_combined
 
 # Calculate ratio according to http://ajrae.staff.shef.ac.uk/atlasofinequality/reports/tech_report_aoi_21_nov_2019.pdf p.9
 # • Calculated the absolute difference in the number of LSOA within the top 20% and the bottom 20% of the Income domain of the English Indices of Deprivation 2019.
@@ -110,6 +142,8 @@ nyanzu_rae_indices <- idd_combined %>%
   mutate(
     low_flag_2015 = ifelse(income_dep_decile_2015 == 9 | income_dep_decile_2015 == 10, 1, 0),
     high_flag_2015 = ifelse(income_dep_decile_2015 == 1 | income_dep_decile_2015 == 2, 1, 0),
+    low_flag_2015_ew = ifelse(income_dep_decile_2015_ew == 9 | income_dep_decile_2015_ew == 10, 1, 0),
+    high_flag_2015_ew = ifelse(income_dep_decile_2015_ew == 1 | income_dep_decile_2015_ew == 2, 1, 0),
     low_flag_2019 = ifelse(income_dep_decile_2019 == 9 | income_dep_decile_2019 == 10, 1, 0),
     high_flag_2019 = ifelse(income_dep_decile_2019 == 1 | income_dep_decile_2019 == 2, 1, 0)
   ) %>%
@@ -121,22 +155,26 @@ nyanzu_rae_indices <- idd_combined %>%
     LA_name = first(LA_name),
     n_lsoas = first(n_lsoas),
     sum_low20_2015 = sum(low_flag_2015),
+    sum_low20_2015_ew = sum(low_flag_2015_ew),
     sum_low20_2019 = sum(low_flag_2019),
     sum_high20_2015 = sum(high_flag_2015),
+    sum_high20_2015_ew = sum(high_flag_2015_ew),
     sum_high20_2019 = sum(high_flag_2019)
   ) %>%
   mutate(
    abs_diff_2015 = abs(sum_low20_2015 - sum_high20_2015),
+   abs_diff_2015_ew = abs(sum_low20_2015_ew - sum_high20_2015_ew),
    abs_diff_2019 = abs(sum_low20_2019 - sum_high20_2019),
    nyanzu_rae_2020index_2015 = abs_diff_2015 / n_lsoas,
+   nyanzu_rae_2020index_2015_ew = abs_diff_2015_ew / n_lsoas,
    nyanzu_rae_2020index_2019 = abs_diff_2019 / n_lsoas
   ) %>%
-  select(LA_name, nyanzu_rae_2020index_2015, nyanzu_rae_2020index_2019)
+  select(LA_name, nyanzu_rae_2020index_2015, nyanzu_rae_2020index_2015_ew, nyanzu_rae_2020index_2019)
 
 nyanzu_rae_indices
 
 # Save csv
-# write_csv(nyanzu_rae_indices, "lea_ineq_index/nyanzu_rae_indices.csv")
+write_csv(nyanzu_rae_indices, "lea_ineq_index/nyanzu_rae_indices.csv")
 
 
 
