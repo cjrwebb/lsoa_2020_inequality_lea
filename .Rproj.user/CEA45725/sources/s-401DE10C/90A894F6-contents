@@ -109,7 +109,8 @@ welsh_id <- left_join(welsh_id, wales_id_15_data, by = c("lsoa_sw_name" = "lsoa1
 
 ### select only income deprivation columns and rates (for 2015)
 english_idd <- english_id %>%
-  select(lsoa11cd, income_dep_decile_2015, income_dep_decile_2019, income_dep_rate_2015)
+  select(lsoa11cd, income_dep_decile_2015, income_dep_decile_2019, income_dep_rate_2015) %>%
+  mutate(income_dep_rate_2015 = income_dep_rate_2015*100)
 
 welsh_idd <- welsh_id %>%
   select(lsoa11cd = lsoa11code, income_dep_decile_2015 = inc_dec_2014, income_dep_decile_2019 = inc_dec_2019, income_dep_rate_2015 = id_rate_2015) %>%
@@ -124,15 +125,14 @@ idd_combined
 # calculate England and Wales comparable rates for 2015
 idd_combined <- idd_combined %>%
   mutate(
-    income_dep_decile_2015_ew = ntile(desc(income_dep_rate_2015), 10)
-  ) %>%
-  select(-income_dep_rate_2015)
+    income_dep_decile_2015_ew = StatMeasures::decile(income_dep_rate_2015)
+  ) 
 
 
 # Add LEA level LA grouping data
 idd_combined <- left_join(idd_combined, lsoa_lea_lookup %>% select(LSOA11CD, LA_name), by = c("lsoa11cd" = "LSOA11CD")) 
   
-idd_combined
+View(idd_combined)
 
 # Calculate ratio according to http://ajrae.staff.shef.ac.uk/atlasofinequality/reports/tech_report_aoi_21_nov_2019.pdf p.9
 # • Calculated the absolute difference in the number of LSOA within the top 20% and the bottom 20% of the Income domain of the English Indices of Deprivation 2019.
@@ -175,9 +175,6 @@ nyanzu_rae_indices
 
 # Save csv
 write_csv(nyanzu_rae_indices, "lea_ineq_index/nyanzu_rae_indices.csv")
-
-
-
 
 
 
