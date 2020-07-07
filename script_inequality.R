@@ -125,14 +125,13 @@ idd_combined
 # calculate England and Wales comparable rates for 2015
 idd_combined <- idd_combined %>%
   mutate(
-    income_dep_decile_2015_ew = StatMeasures::decile(income_dep_rate_2015)
+    income_dep_decile_2015_ew = StatMeasures::decile(income_dep_rate_2015, decreasing = TRUE)
   ) 
 
 
 # Add LEA level LA grouping data
 idd_combined <- left_join(idd_combined, lsoa_lea_lookup %>% select(LSOA11CD, LA_name), by = c("lsoa11cd" = "LSOA11CD")) 
   
-View(idd_combined)
 
 # Calculate ratio according to http://ajrae.staff.shef.ac.uk/atlasofinequality/reports/tech_report_aoi_21_nov_2019.pdf p.9
 # • Calculated the absolute difference in the number of LSOA within the top 20% and the bottom 20% of the Income domain of the English Indices of Deprivation 2019.
@@ -162,13 +161,13 @@ nyanzu_rae_indices <- idd_combined %>%
     sum_high20_2019 = sum(high_flag_2019)
   ) %>%
   mutate(
-   abs_diff_2015 = abs(sum_low20_2015 - sum_high20_2015),
-   abs_diff_2015_ew = abs(sum_low20_2015_ew - sum_high20_2015_ew),
-   abs_diff_2019 = abs(sum_low20_2019 - sum_high20_2019),
+   abs_diff_2015 = abs(sum_high20_2015 - sum_low20_2015),
+   abs_diff_2015_ew = abs(sum_high20_2015_ew - sum_low20_2015),
+   abs_diff_2019 = abs(sum_high20_2019 - sum_low20_2015),
    nyanzu_rae_2020index_2015 = abs_diff_2015 / n_lsoas,
    nyanzu_rae_2020index_2015_ew = abs_diff_2015_ew / n_lsoas,
    nyanzu_rae_2020index_2019 = abs_diff_2019 / n_lsoas
-  ) %>%
+  )  %>%
   select(LA_name, nyanzu_rae_2020index_2015, nyanzu_rae_2020index_2015_ew, nyanzu_rae_2020index_2019)
 
 nyanzu_rae_indices
